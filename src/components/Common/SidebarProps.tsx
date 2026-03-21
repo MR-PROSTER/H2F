@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState } from 'react'
-import { ChevronFirst, ChevronLast, MoreVertical, TextAlignJustify } from "lucide-react"
+import { createContext, useContext, useState } from 'react'
+import { MoreVertical, TextAlignJustify } from "lucide-react"
 
 const SidebarContext = createContext({ expanded: true });
-const sidebar = ({ children }: any) => {
+const SidebarProps = ({ children }: any) => {
     const [expanded, setExpanded] = useState(true);
     return (
         <aside className='h-screen w-fit bg-[#0f0e10] rounded-2xl'>
@@ -43,4 +43,4 @@ export function SidebarItem({ icon, text, active, alert }: any) {
     )
 }
 
-export default sidebar
+export default SidebarProps

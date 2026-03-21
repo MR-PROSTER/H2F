@@ -1,7 +1,7 @@
-import { Bell, BriefcaseMedical, ChevronRight, CircleDollarSign, HatGlasses, Info, Search, Target } from 'lucide-react'
-import React, { useState } from 'react'
+import { Bell, BriefcaseMedical, ChevronRight, CircleDollarSign, HatGlasses, Info, Search } from 'lucide-react'
+import { useState } from 'react'
 
-const Body = () => {
+const HomePage = () => {
     const [selected, setSelected] = useState(false);
     const [choice, setChoice] = useState<'healthcare' | 'finance' | null>(null);
     const [lang, setLang] = useState<'english' | 'kannada' | 'hindi' | 'telugu' | null>(null);
@@ -26,9 +26,9 @@ const Body = () => {
             <div className='h-full w-full rounded-2xl flex flex-col items-center'>
                 <div className='h-full w-full flex items-center justify-center p-16'>
                     <div className='h-full w-full border border-gray-500 bg-[#0f0e10] rounded-3xl flex flex-col items-center justify-center'>
-                        <div className='w-full h-1/6 flex flex-col items-center justify-center mt-4'>
+                        <div className='w-full h-1/6 flex flex-col items-center justify-center mt-4' style={{ fontFamily: 'Syne' }}>
                             <h1 className='font-bold text-white text-5xl m-2'>Set up your <span className={`${choice == 'healthcare' ? "text-teal-500" : choice == 'finance' ? "text-amber-500" : "text-gray-500"}`}>Workspace</span></h1>
-                            <h4 className='font-semibold text-amber-50 text-3xl m-2'>IDRP adapts its AI model, terminology and report structure to match your domain.</h4>
+                            <h4 className='font-semibold text-amber-50 text-3xl m-2 font-syne'>IDRP adapts its AI model, terminology and report structure to match your domain.</h4>
                         </div>
                         <div className='w-full h-4/6 flex items-center justify-evenly p-16 gap-4 '>
                             <div className={`relative h-full w-1/2  rounded-2xl  p-16  flex flex-col items-start justify-start border border-teal-500/30 ${choice == 'healthcare' ? 'bg-teal-500/20' : 'bg-teal-500/5'} hover:border-sky-500/70 hover:shadow-[0_0_30px_rgba(14,165,233,0.1)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1`} onClick={() => { setChoice("healthcare"); setSelected(true) }}>
@@ -36,7 +36,7 @@ const Body = () => {
                                     <BriefcaseMedical size={50} className='text-teal-500 transition-transform duration-200 ease-in-out hover:scale-[1.08]' />
                                 </div>
                                 <div className='h-full w-full p-4 z-2'>
-                                    <h1 className='text-white font-bold text-6xl'>Healthcare</h1>
+                                    <h1 className='text-white font-bold text-6xl' style={{ fontFamily: "syne" }}>Healthcare</h1>
                                     <h5 className='mt-2 mb-4 text-gray-500'>Doctors · Hospitals · Clinics</h5>
                                     <h4 className='text-gray-200 font-medium text-xl mt-4'>AI transcribes your patient conversations in various languages. Medical reports generated automatically.</h4>
                                 </div>
@@ -56,7 +56,7 @@ const Body = () => {
                                     <CircleDollarSign size={50} className='text-amber-500 transition-transform duration-200 ease-in-out hover:scale-[1.08]' />
                                 </div>
                                 <div className='h-full w-full p-4 z-2'>
-                                    <h1 className='text-white font-bold text-6xl'>Finance</h1>
+                                    <h1 className='text-white font-bold text-6xl' style={{ fontFamily: "syne" }}>Finance</h1>
                                     <h5 className='mt-2 mb-4 text-gray-500'>Banks · NBFCs · Loan Recovery</h5>
                                     <h4 className='text-gray-200 font-medium text-xl mt-4'>AI conducts loan follow-up
                                         calls automatically. Payment data extracted.
@@ -81,7 +81,7 @@ const Body = () => {
                                     <Info size={24} className='text-white' />
                                 </div>
                                 <div>
-                                    <h3 className='text-white font-medium font-Inter'>Domain settings affect the AI Terminology and entity extraction models.</h3>
+                                    <h3 className='text-white font-medium font-inter'>Domain settings affect the AI Terminology and entity extraction models.</h3>
                                 </div>
                                 <div>
                                     <h1 className='text-2xl text-white'>Need Help?</h1>
@@ -100,4 +100,4 @@ const Body = () => {
     )
 }
 
-export default Body
+export default HomePage

@@ -1,17 +1,18 @@
-import {BrowserRouter , Routes , Route} from 'react-router-dom';
-import Body from './components/Dashboard/Body'
-import Dashboard from './Dashboard';
-import Home from './Home';
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Dashboard from './Dashboard'
+import Home from './Home'
+import VoiceRecording from './VoiceRecording'
 
 const App = () => {
-  return (
-    <BrowserRouter>
-    <Routes>
-        <Route path='/Dashboard' element={<Dashboard/>}/>
-        <Route path='/home' element={<Home/>}/>
-    </Routes>
-    </BrowserRouter>
-  )
+    return (
+        <BrowserRouter>
+            <Routes>
+                <Route path='/dashboard' element={<Dashboard />} />
+                <Route path='/home' element={<Home />} />
+                <Route path='/voice' element={<VoiceRecording />} />
+            </Routes>
+        </BrowserRouter>
+    )
 }
 
 export default App

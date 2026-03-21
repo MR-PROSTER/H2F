@@ -2,22 +2,28 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
-
 @font-face {
   font-family: 'Inter';
-  src: url('./assets/fonts/Inter-VariableFont_opsz\,wght.ttf') format('truetype');
-  font-weight: 400;
+  src: url('./assets/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
   font-style: normal;
 }
 
 @font-face {
-  font-family: 'IBMPlexSans';
-  src: url('./assets/fonts/IBMPlexSans-VariableFont_wdth\,wght.ttf') format('truetype');
-  font-weight: 400;
+  font-family: 'Syne';
+  src: url('./assets/fonts/Syne-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  src: url('./assets/fonts/DMSans-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 1000;
   font-style: normal;
 }
 
-body{
-    font-family: IBMPlexSans;
+body {
+  font-family: 'DM Sans', sans-serif;
 }

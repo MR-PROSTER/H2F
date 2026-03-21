@@ -2,7 +2,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        Inter: ['Inter', 'sans-serif'],
+        'inter': ['Inter', 'sans-serif'],
+        'syne': ['Syne', 'sans-serif'],
+        'dm-sans': ['DM Sans', 'sans-serif']
       },
     },
   },

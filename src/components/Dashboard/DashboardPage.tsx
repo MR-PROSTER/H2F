@@ -1,8 +1,7 @@
-import React from 'react'
-import Sidebar from "./Sidebar"
+import Sidebar from "../Common/Sidebar"
 import Tempnav from './Tempnav'
 
-const Body = () => {
+const DashboardPage = () => {
     return (
         <div className='flex'>
             <Sidebar />
@@ -11,4 +10,4 @@ const Body = () => {
     )
 }
 
-export default Body
+export default DashboardPage
