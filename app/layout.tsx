@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Outfit, Oxanium } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Oxanium, Outfit, Lexend } from "next/font/google"
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import Sidebar from "@/components/common/Siderbar";
+import Navbar from "@/components/common/Navbar";
 
-const oxaniumHeading = Oxanium({subsets:['latin'],variable:'--font-heading'});
-
-const outfit = Outfit({subsets:['latin'],variable:'--font-sans'});
+const oxaniumHeading = Oxanium({ subsets: ['latin'], variable: '--font-heading' });
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -50,7 +50,13 @@ export default function RootLayout({
             lang="en"
             className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, oxanium.variable, lexend.variable, "font-sans", outfit.variable, oxaniumHeading.variable)}
         >
-            <body className="min-h-full flex flex-col">{children}</body>
+            <body className="min-h-full flex bg-black">
+                <Sidebar />
+                <div className='flex flex-col w-full h-full'>
+                    <Navbar />
+                    {children}
+                </div>
+            </body>
         </html>
     );
 }
