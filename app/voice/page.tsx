@@ -53,7 +53,7 @@ const TranscriptPanel = ({ isRecording }: { isRecording: boolean }) => {
                     transcription.transcript.map((line, i) => (
                         <div
                             key={i}
-                            className="rounded-lg p-3 bg-[#1a1a1a] border-[#717171]">
+                            className="rounded-lg p-3 bg-[#0e0e0e] border-[#717171]">
                             <div className="flex items-center gap-2 mb-1">
                                 <span
                                     className="text-xs font-mono font-bold tracking-widest"
@@ -126,7 +126,7 @@ const ExtractionPanel = ({ isRecording }: { isRecording: boolean }) => {
                     return (
                         <div
                             key={key}
-                            className="rounded-lg p-3 bg-[#1a1a1a] border-[#717171]">
+                            className="rounded-lg p-3 bg-[#0e0e0e] border-[#717171]">
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="text-xs font-mono text-[#dadada] tracking-widest">
                                     {label}
@@ -157,7 +157,7 @@ const ExtractionPanel = ({ isRecording }: { isRecording: boolean }) => {
                 })}
 
                 {/* Symptoms tags */}
-                <div className="rounded-lg p-3 bg-[#1a1a1a] border-[#717171]">
+                <div className="rounded-lg p-3 bg-[#0e0e0e] border-[#717171]">
                     <span className="text-xs font-mono text-[#dadada] tracking-widest block mb-2">
                         ASSOCIATED SYMPTOMS
                     </span>
@@ -175,7 +175,7 @@ const ExtractionPanel = ({ isRecording }: { isRecording: boolean }) => {
 
                 {/* Sentiment + Keywords */}
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg p-3 bg-[#1a1a1a] border-[#717171]">
+                    <div className="rounded-lg p-3 bg-[#0e0e0e] border-[#717171]">
                         <span className="text-xs font-mono text-[#b7b7b7] tracking-widest block mb-1">
                             SENTIMENT
                         </span>
@@ -183,7 +183,7 @@ const ExtractionPanel = ({ isRecording }: { isRecording: boolean }) => {
                             {extraction.sentiment}
                         </p>
                     </div>
-                    <div className="rounded-lg p-3 bg-[#1a1a1a] border-[#717171]">
+                    <div className="rounded-lg p-3 bg-[#0e0e0e] border-[#717171]">
                         <span className="text-xs font-mono text-[#b7b7b7] tracking-widest block mb-1">
                             STATUS
                         </span>
