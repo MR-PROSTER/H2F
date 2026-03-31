@@ -144,7 +144,7 @@ const UserProfilePage = () => {
                         <div className="relative h-full w-fit p-4 text-xl font-semibold text-white"><span>ALERTS</span>
                             {alerts && <div className='absolute h-2 w-2 rounded-full bg-teal-500 top-2 right-2'></div>}
                         </div>
-                        <div className="h-full w-fit p-4 text-xl font-semibold text-white"><span>MONITERING</span></div>
+                        <div className="h-full w-fit p-4 text-xl font-semibold text-white"><span>MONITORING</span></div>
 
                     </div>
                     {/* DETAILS SECTION */}

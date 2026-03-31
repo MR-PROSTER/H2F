@@ -143,7 +143,7 @@ const ScheduledCallsPage = () => {
             {/* Widgets */}
             <div className="w-full h-2/12 rounded-t-xl flex gap-4 px-4">
                 <div className="w-full h-full  flex items-center justify-center gap-4 px-4">
-                    <div className="w-full h-full rounded-t-xl bg-[#0a0a0a]"></div>
+                    <div className="w-full h-full rounded-t-xl bg-[#0a0a0a11]"></div>
                 </div>
             </div>
         </div>
