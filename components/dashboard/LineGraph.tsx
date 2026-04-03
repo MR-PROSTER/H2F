@@ -18,6 +18,7 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart"
+import { getDashboardSessionsTrend } from "@/lib/services/dashboard.service"
 
 const generateData = (days: number) => {
     const data = []
@@ -48,6 +49,8 @@ const chartConfig = {
 
 export function ChartBarInteractive() {
     const [chartData, setChartData] = React.useState<any[]>([])
+
+
 
     React.useEffect(() => {
         setChartData(generateData(30))

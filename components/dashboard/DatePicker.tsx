@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+
 import { addDays, format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { type DateRange } from "react-day-picker"
@@ -13,12 +14,18 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
+import { useDashboardCustomRangeSelector } from "@/store/useRecordingStore"
 
 export function DatePickerWithRange() {
-    const [date, setDate] = React.useState<DateRange | undefined>({
-        from: new Date(new Date().getFullYear(), 0, 20),
-        to: addDays(new Date(new Date().getFullYear(), 0, 20), 20),
-    })
+    const date = useDashboardCustomRangeSelector((state) => state.customRangeSelector)
+    const setDate = useDashboardCustomRangeSelector((state) => state.setCustomRangeSelector)
+
+    React.useEffect(() => {
+        setDate({
+            from: new Date(new Date().getFullYear(), 0, 20),
+            to: addDays(new Date(new Date().getFullYear(), 0, 20), 20),
+        })
+    }, [])
 
     return (
         <Field className="mx-auto w-60 scale-110 font-semibold">

@@ -1,6 +1,22 @@
 'use client';
 
+import { DateRange } from 'react-day-picker';
 import { create } from 'zustand';
+
+interface DashboardRangeSelector {
+    range:number;
+    setRange:(range:number)=>void
+}
+
+interface DashboardCustomRangeSelector {
+    customRangeSelector:DateRange | null
+    setCustomRangeSelector:(customRangeSelector:DateRange|null)=>void
+}
+
+interface DashboardDomain {
+    domain:String;
+    setDomain:(domain:String)=>void;
+}
 
 interface TranscriptLine {
     speaker: string;
@@ -79,5 +95,20 @@ const useRecordingStore = create<RecordingState>((set) => ({
         })),
     resetExtraction: () => set({ extraction: defaultExtraction }),
 }));
+
+ export const useDashboardRangeSelector = create<DashboardRangeSelector>((set)=>({
+    range:7,
+    setRange : (range)=> set({range})
+}))
+
+export const useDashboardCustomRangeSelector = create<DashboardCustomRangeSelector>((set)=>({
+    customRangeSelector:null,
+    setCustomRangeSelector:(customRangeSelector)=>set({customRangeSelector})
+}))
+
+export const useDashboardDomain = create<DashboardDomain>((set)=>({
+    domain:"All",
+    setDomain:(domain)=>set({domain})
+}))
 
 export default useRecordingStore;

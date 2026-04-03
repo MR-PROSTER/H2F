@@ -146,8 +146,8 @@ const AlertsCenterPage = () => {
 
                 {/* FILTER TABS */}
                 <div className='w-full h-fit flex items-center justify-start gap-4 p-4'>
-                    {(['All', 'Critical', 'Medium', 'Low', 'Acknowledged'] as const).map((filter) => (
-                        <div className='h-full w-fit p-4' onClick={() => setActiveFilter(filter)}>
+                    {(['All', 'Critical', 'Medium', 'Low', 'Acknowledged'] as const).map((filter, index) => (
+                        <div key={index} className='h-full w-fit p-4' onClick={() => setActiveFilter(filter)}>
                             <span className={`text-xl font-semibold text-white ${activeFilter === filter ? "border-b-4 border-white" : ""} p-2`}>{filter}</span>
                         </div>
                     ))}
