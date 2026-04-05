@@ -20,15 +20,6 @@ import {
 export const description = "A pie chart with a legend"
 
 const base = "20, 184, 166" // teal rgb
-
-const chartData = [
-    { language: "English", patients: 180, fill: `rgba(${base}, 1)` },
-    { language: "Hindi", patients: 140, fill: `rgba(${base}, 0.85)` },
-    { language: "Telugu", patients: 95, fill: `rgba(${base}, 0.7)` },
-    { language: "Tamil", patients: 70, fill: `rgba(${base}, 0.55)` },
-    { language: "Kannada", patients: 55, fill: `rgba(${base}, 0.4)` },
-]
-
 const chartConfig = {
     patients: {
         label: "Patients",
@@ -40,7 +31,22 @@ const chartConfig = {
     Kannada: { label: "Kannada", color: "#8b5cf6" },
 }
 
-export function ChartPieLegend() {
+type ChartPieLegendProps = {
+    data: Array<{
+        language: string;
+        sessions: number;
+    }>;
+}
+
+export function ChartPieLegend({ data }: ChartPieLegendProps) {
+    const chartData = data.slice(0, 5).map((entry, index) => ({
+        language: entry.language,
+        patients: entry.sessions,
+        fill: `rgba(${base}, ${1 - index * 0.15})`,
+    }))
+
+    const totalPatients = chartData.reduce((sum, item) => sum + item.patients, 0)
+
     return (
         <Card className="flex flex-col">
             <CardHeader className="flex flex-col gap-2 px-6 ">
@@ -50,7 +56,7 @@ export function ChartPieLegend() {
                 </CardDescription>
 
                 <div className="text-2xl font-bold">
-                    565 total patients
+                    {totalPatients} total sessions
                 </div>
             </CardHeader>
             <CardContent className="flex-1 pb-0">

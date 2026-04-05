@@ -1,8 +1,6 @@
 "use client"
 
-import * as React from "react"
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis } from "recharts"
-
+import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
 
 import {
     Card,
@@ -18,27 +16,6 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart"
-import { getDashboardSessionsTrend } from "@/lib/services/dashboard.service"
-
-const generateData = (days: number) => {
-    const data = []
-
-    for (let i = 1; i <= days; i++) {
-        const base = 40 + Math.random() * 30
-        const isWeekend = i % 7 === 6 || i % 7 === 0
-
-        const sessions = Math.round(
-            isWeekend ? base - 10 : base + Math.random() * 10
-        )
-
-        data.push({
-            day: `D${i}`, // ✅ shorter label (IMPORTANT)
-            sessions: Math.max(20, sessions),
-        })
-    }
-
-    return data
-}
 
 const chartConfig = {
     sessions: {
@@ -47,19 +24,20 @@ const chartConfig = {
     },
 } satisfies ChartConfig
 
-export function ChartBarInteractive() {
-    const [chartData, setChartData] = React.useState<any[]>([])
+type ChartBarInteractiveProps = {
+    data: Array<{
+        date: string;
+        totalSessions: number;
+    }>;
+}
 
+export function ChartBarInteractive({ data }: ChartBarInteractiveProps) {
+    const chartData = data.map((entry) => ({
+        day: new Date(entry.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        sessions: entry.totalSessions,
+    }))
 
-
-    React.useEffect(() => {
-        setChartData(generateData(30))
-    }, [])
-
-    const totalSessions = React.useMemo(
-        () => chartData.reduce((acc, curr) => acc + curr.sessions, 0),
-        [chartData]
-    )
+    const totalSessions = chartData.reduce((acc, curr) => acc + curr.sessions, 0)
 
     if (!chartData.length) return null
 

@@ -115,6 +115,10 @@ export const getPastScheduledCalls = async (limit = 20) => {
             orderBy: { created_at: "desc" },
             take: 1,
           },
+          alerts: {
+            orderBy: { created_at: "desc" },
+            take: 1,
+          },
         },
       },
     },

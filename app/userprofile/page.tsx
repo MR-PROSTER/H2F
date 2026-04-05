@@ -4,7 +4,7 @@ import Image from "next/image";
 
 
 const UserProfilePage = async () => {
-    const userId = 1;
+    const userId = 2;
     const patientProfile = await getPatientProfile(userId);
     const patientMedicalSummary = await getPatientMedicalSummary(userId)
     const patientAlerts = await getPatientAlerts(userId)
@@ -89,7 +89,7 @@ const UserProfilePage = async () => {
                                         <div className="h-1/2 w-full py-4">
                                             <h1 className="text-[#f1f1f1] text-xl font-semibold">{item.title}</h1>
                                         </div>
-                                        <div className={`w-full text-white text-md bg-[#2c2c2c] p-2 rounded-xl ${item.description.length < 50 || null ? 'h-1/2' : 'h-fit'}`}>
+                                        <div className={`w-full text-white text-md bg-[#2c2c2c] p-2 rounded-xl ${((item.description ?? "").length < 50) ? 'h-1/2' : 'h-fit'}`}>
                                             <p>{item.description}</p>
                                         </div>
                                     </div>

@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import {
     Line,
     LineChart,
@@ -24,31 +23,6 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart"
-
-
-// ✅ Sentiment Data Generator (REALISTIC)
-const generateSentimentData = (days: number) => {
-    const data = []
-    let base = 0.6
-
-    for (let i = 1; i <= days; i++) {
-        const change = (Math.random() - 0.5) * 0.1
-        base += change
-
-        // clamp values
-        base = Math.max(0.3, Math.min(0.9, base))
-
-        data.push({
-            day: `D${i}`,
-            sentiment: Number(base.toFixed(2)),
-        })
-    }
-
-    return data
-}
-
-
-// ✅ Chart Config
 const chartConfig = {
     sentiment: {
         label: "Sentiment Score",
@@ -56,26 +30,31 @@ const chartConfig = {
     },
 } satisfies ChartConfig
 
+type SentimentTrendChartProps = {
+    data: Array<{
+        date: string;
+        positive: number;
+        neutral: number;
+        negative: number;
+        frustrated: number;
+    }>;
+}
 
-export function SentimentTrendChart() {
-    const [chartData, setChartData] = React.useState<any[]>([])
+export function SentimentTrendChart({ data }: SentimentTrendChartProps) {
+    const chartData = data.map((entry) => {
+        const total = entry.positive + entry.neutral + entry.negative + entry.frustrated
+        const sentiment = total === 0 ? 0 : Number(((entry.positive / total) * 100).toFixed(1))
+        return {
+            day: new Date(entry.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+            sentiment,
+        }
+    })
 
-    // ✅ SSR-safe data generation
-    React.useEffect(() => {
-        setChartData(generateSentimentData(30)) // change to 7 / 90 easily
-    }, [])
-
-    const avgSentiment = React.useMemo(() => {
-        if (!chartData.length) return 0
-        return (
-            chartData.reduce((acc, curr) => acc + curr.sentiment, 0) /
-            chartData.length
-        )
-    }, [chartData])
+    const avgSentiment = chartData.length
+        ? chartData.reduce((acc, curr) => acc + curr.sentiment, 0) / chartData.length
+        : 0
 
     if (!chartData.length) return null
-
-    // ✅ shared line style (CONSISTENCY)
     const lineProps = {
         type: "monotone" as const,
         strokeWidth: 2,
@@ -95,7 +74,7 @@ export function SentimentTrendChart() {
                 </CardDescription>
 
                 <div className="text-2xl font-bold">
-                    {(avgSentiment * 100).toFixed(0)}% positive
+                    {avgSentiment.toFixed(0)}% positive
                 </div>
             </CardHeader>
 
@@ -128,7 +107,7 @@ export function SentimentTrendChart() {
                                     <ChartTooltipContent
                                         nameKey="sentiment"
                                         formatter={(value) =>
-                                            `${(Number(value) * 100).toFixed(0)}%`
+                                            `${Number(value).toFixed(0)}%`
                                         }
                                     />
                                 }
