@@ -1,7 +1,19 @@
 import WebSocket from 'ws';
-import { Server } from 'http';
+import { IncomingMessage, Server } from 'http';
 import { Express } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+
+const resolveRequestOrigin = (req: IncomingMessage) => {
+  const protocolHeader = req.headers['x-forwarded-proto'];
+  const protocol = Array.isArray(protocolHeader) ? protocolHeader[0] : protocolHeader;
+  const hostHeader = req.headers['x-forwarded-host'] || req.headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  return `${protocol || 'http'}://${host}`;
+};
+
+const resolveFrontendBaseUrl = (req: IncomingMessage) => {
+  return process.env.FRONTEND_URL || resolveRequestOrigin(req);
+};
 
 interface Room {
   id: string;
@@ -29,9 +41,40 @@ export function setupWebRTCSignaling(server: Server, app: Express) {
     path: '/webrtc-signal',
   });
 
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on('connection', (ws: WebSocket, request: IncomingMessage) => {
     let roomId: string | null = null;
     let role: 'agent' | 'customer' | null = null;
+
+    const attachToRoom = (targetRoomId: string, targetRole: 'agent' | 'customer') => {
+      const room = rooms.get(targetRoomId);
+
+      if (!room) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
+        return;
+      }
+
+      roomId = targetRoomId;
+      role = targetRole;
+
+      if (targetRole === 'agent') {
+        room.agentSocket = ws;
+        if (room.customerSocket) {
+          ws.send(JSON.stringify({ type: 'peer-joined', role: 'customer' }));
+        }
+      } else {
+        room.customerSocket = ws;
+        room.agentSocket?.send(JSON.stringify({ type: 'peer-joined', role: 'customer' }));
+      }
+
+      ws.send(JSON.stringify({ type: 'joined', roomId: targetRoomId, role: targetRole }));
+    };
+
+    const requestUrl = new URL(request.url || '', 'http://localhost');
+    const roomFromQuery = requestUrl.searchParams.get('room');
+    const roleFromQuery = requestUrl.searchParams.get('role');
+    if (roomFromQuery && (roleFromQuery === 'agent' || roleFromQuery === 'customer')) {
+      attachToRoom(roomFromQuery, roleFromQuery);
+    }
 
     ws.on('message', (data: Buffer) => {
       try {
@@ -39,31 +82,11 @@ export function setupWebRTCSignaling(server: Server, app: Express) {
 
         switch (message.type) {
           case 'join':
-            roomId = message.roomId;
-            role = message.role || 'agent';
-            if (roomId) {
-              const room = rooms.get(roomId);
-
-              if (!room) {
-                ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
-                return;
-              }
-
-              // Assign socket to room
-              if (role === 'agent') {
-                room.agentSocket = ws;
-                // If customer already connected, notify agent
-                if (room.customerSocket) {
-                  ws.send(JSON.stringify({ type: 'peer-joined', role: 'customer' }));
-                }
-              } else {
-                room.customerSocket = ws;
-                // Notify agent that customer joined
-                room.agentSocket?.send(JSON.stringify({ type: 'peer-joined', role: 'customer' }));
-              }
-
-              ws.send(JSON.stringify({ type: 'joined', roomId, role }));
+            if (!message.roomId) {
+              ws.send(JSON.stringify({ type: 'error', message: 'roomId is required' }));
+              return;
             }
+            attachToRoom(message.roomId, message.role === 'customer' ? 'customer' : 'agent');
             break;
 
           case 'offer':
@@ -183,14 +206,15 @@ export function setupWebRTCSignaling(server: Server, app: Express) {
 
     rooms.set(roomId, room);
 
-    const domain = process.env.NGROK_URL || `http://localhost:${process.env.PORT || 4000}`;
-    const protocol = domain.startsWith('https') ? 'wss' : 'ws';
+    const frontendBaseUrl = resolveFrontendBaseUrl(req);
+    const backendOrigin = resolveRequestOrigin(req);
+    const wsUrl = `${backendOrigin.replace('https://', 'wss://').replace('http://', 'ws://')}/webrtc-signal`;
 
     res.json({
       roomId,
-      agentLink: `${domain.replace('http', 'https').replace('ws', 'http')}/call/join/${roomId}`,
-      customerLink: `${domain.replace('http', 'https').replace('ws', 'http')}/call/join/${roomId}`,
-      wsUrl: `${protocol}://${domain.replace('http://', '').replace('https://', '')}/webrtc-signal`,
+      agentLink: `${frontendBaseUrl}/call?source=manual-room&patientName=${encodeURIComponent(room.customerName)}&patientId=${encodeURIComponent(room.loanAccountNumber)}&patientPhone=${encodeURIComponent(room.customerPhone)}&domain=finance`,
+      customerLink: `${frontendBaseUrl}/call/join/${roomId}?mode=manual`,
+      wsUrl,
     });
   });
 
@@ -212,7 +236,7 @@ export function setupWebRTCSignaling(server: Server, app: Express) {
 
   // Handle WebSocket upgrade
   server.on('upgrade', (req, socket, head) => {
-    const pathname = req.url;
+    const pathname = new URL(req.url || '', 'http://localhost').pathname;
 
     if (pathname === '/webrtc-signal') {
       wss.handleUpgrade(req, socket, head, (ws) => {

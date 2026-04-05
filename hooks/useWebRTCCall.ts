@@ -17,6 +17,21 @@ const STUN_SERVERS: RTCIceServer[] = [
     { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
+const getBackendHttpUrl = () => {
+    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+};
+
+const getBackendWsUrl = () => {
+    const httpUrl = getBackendHttpUrl();
+    if (httpUrl.startsWith('https://')) {
+        return httpUrl.replace('https://', 'wss://');
+    }
+    if (httpUrl.startsWith('http://')) {
+        return httpUrl.replace('http://', 'ws://');
+    }
+    return `ws://${httpUrl}`;
+};
+
 export function useWebRTCCall(): UseWebRTCCallReturn {
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -24,9 +39,27 @@ export function useWebRTCCall(): UseWebRTCCallReturn {
     const [error, setError] = useState<string | null>(null);
 
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-    const socketRef = useRef<any>(null);
+    const socketRef = useRef<WebSocket | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
     const remoteStreamRef = useRef<MediaStream | null>(null);
+    const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+
+    const flushPendingCandidates = useCallback(async () => {
+        if (!peerConnectionRef.current || pendingCandidatesRef.current.length === 0) {
+            return;
+        }
+
+        const queued = [...pendingCandidatesRef.current];
+        pendingCandidatesRef.current = [];
+
+        for (const candidate of queued) {
+            try {
+                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (candidateError) {
+                console.error('Failed to add queued ICE candidate:', candidateError);
+            }
+        }
+    }, []);
 
     const cleanup = useCallback(() => {
         if (peerConnectionRef.current) {
@@ -40,9 +73,17 @@ export function useWebRTCCall(): UseWebRTCCallReturn {
         }
 
         if (socketRef.current) {
-            socketRef.current.disconnect();
+            try {
+                if (socketRef.current.readyState === WebSocket.OPEN) {
+                    socketRef.current.close();
+                }
+            } catch (socketCloseError) {
+                console.error('Error while closing signaling socket:', socketCloseError);
+            }
             socketRef.current = null;
         }
+
+        pendingCandidatesRef.current = [];
 
         setLocalStream(null);
         setRemoteStream(null);
@@ -52,12 +93,14 @@ export function useWebRTCCall(): UseWebRTCCallReturn {
     const initializePeerConnection = useCallback(() => {
         const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
 
-        pc.onicecandidate = (event) => {
-            if (event.candidate && socketRef.current) {
-                socketRef.current.emit('call:ice', {
-                    sessionId: socketRef.current.sessionId,
-                    candidate: event.candidate,
-                });
+        pc.onicecandidate = ({ candidate }) => {
+            if (candidate && socketRef.current?.readyState === WebSocket.OPEN) {
+                socketRef.current.send(
+                    JSON.stringify({
+                        type: 'ice-candidate',
+                        candidate,
+                    })
+                );
             }
         };
 
@@ -80,155 +123,179 @@ export function useWebRTCCall(): UseWebRTCCallReturn {
         return pc;
     }, []);
 
+    const setupLocalAudio = useCallback(async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            },
+            video: false,
+        });
+
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        return stream;
+    }, []);
+
+    const connectSignalingSocket = useCallback((sessionId: string, role: 'agent' | 'customer') => {
+        const wsUrl = `${getBackendWsUrl()}/webrtc-signal?room=${encodeURIComponent(sessionId)}&role=${role}`;
+        const socket = new WebSocket(wsUrl);
+        socketRef.current = socket;
+        return socket;
+    }, []);
+
+    const addRemoteIceCandidate = useCallback(async (candidate: RTCIceCandidateInit) => {
+        if (!peerConnectionRef.current) {
+            pendingCandidatesRef.current.push(candidate);
+            return;
+        }
+
+        const hasRemoteDescription = Boolean(peerConnectionRef.current.remoteDescription?.type);
+        if (!hasRemoteDescription) {
+            pendingCandidatesRef.current.push(candidate);
+            return;
+        }
+
+        try {
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (candidateError) {
+            console.error('Failed to add ICE candidate:', candidateError);
+        }
+    }, []);
+
     const startCall = useCallback(async (sessionId: string) => {
         try {
             setError(null);
 
-            // Get local media stream
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: false,
-            });
+            const stream = await setupLocalAudio();
+            const socket = connectSignalingSocket(sessionId, 'agent');
 
-            localStreamRef.current = stream;
-            setLocalStream(stream);
+            socket.onopen = () => {
+                console.log('Connected to signaling server as agent');
+            };
 
-            // Initialize Socket.io
-            const ioFn = (window as any).io;
-            if (!ioFn) {
-                throw new Error('Socket.io not available');
-            }
+            socket.onmessage = async ({ data }) => {
+                const raw = typeof data === 'string' ? data : '';
+                if (!raw) return;
+                const message = JSON.parse(raw);
 
-            const socket = ioFn('http://localhost:3001');
-            socketRef.current = socket;
-            socket.sessionId = sessionId;
+                if (message.type === 'peer-joined') {
+                    const pc = initializePeerConnection();
 
-            socket.on('connect', () => {
-                console.log('Connected to signaling server');
-                socket.emit('call:initiate', { sessionId, role: 'doctor' });
-            });
+                    stream.getTracks().forEach((track) => {
+                        pc.addTrack(track, stream);
+                    });
 
-            // Listen for patient joining
-            socket.on('call:patient-joined', async () => {
-                console.log('Patient joined, creating offer...');
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
 
-                const pc = initializePeerConnection();
-
-                // Add local stream tracks to peer connection
-                stream.getTracks().forEach(track => {
-                    pc.addTrack(track, stream);
-                });
-
-                // Create and send offer
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-
-                socket.emit('call:offer', { sessionId, offer: pc.localDescription });
-            });
-
-            // Handle answer from patient
-            socket.on('call:answer', async (data: { answer: RTCSessionDescriptionInit }) => {
-                if (peerConnectionRef.current && data.answer) {
-                    await peerConnectionRef.current.setRemoteDescription(
-                        new RTCSessionDescription(data.answer)
-                    );
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(
+                            JSON.stringify({
+                                type: 'offer',
+                                offer,
+                            })
+                        );
+                    }
                 }
-            });
 
-            // Handle ICE candidates from patient
-            socket.on('call:ice', async (data: { candidate: RTCIceCandidateInit }) => {
-                if (peerConnectionRef.current && data.candidate) {
-                    await peerConnectionRef.current.addIceCandidate(
-                        new RTCIceCandidate(data.candidate)
-                    );
+                if (message.type === 'answer' && message.answer && peerConnectionRef.current) {
+                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.answer));
+                    await flushPendingCandidates();
                 }
-            });
 
-            // Handle call ended
-            socket.on('call:ended', () => {
-                console.log('Call ended by patient');
-                cleanup();
-            });
+                if (message.type === 'ice-candidate' && message.candidate) {
+                    await addRemoteIceCandidate(message.candidate);
+                }
+
+                if (message.type === 'call-ended' || message.type === 'peer-left') {
+                    cleanup();
+                }
+            };
+
+            socket.onerror = () => {
+                setError('Signaling connection failed');
+            };
+
+            socket.onclose = () => {
+                setIsConnected(false);
+            };
 
         } catch (err) {
             console.error('Error starting call:', err);
             setError(err instanceof Error ? err.message : 'Failed to start call');
             cleanup();
         }
-    }, [cleanup, initializePeerConnection]);
+    }, [addRemoteIceCandidate, cleanup, connectSignalingSocket, flushPendingCandidates, initializePeerConnection, setupLocalAudio]);
 
     const joinCall = useCallback(async (sessionId: string) => {
         try {
             setError(null);
 
-            // Get local media stream
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: false,
-            });
+            const stream = await setupLocalAudio();
+            const socket = connectSignalingSocket(sessionId, 'customer');
 
-            localStreamRef.current = stream;
-            setLocalStream(stream);
+            socket.onopen = () => {
+                console.log('Connected to signaling server as customer');
+            };
 
-            // Initialize Socket.io
-            const ioFn = (window as any).io;
-            if (!ioFn) {
-                throw new Error('Socket.io not available');
-            }
+            socket.onmessage = async ({ data }) => {
+                const raw = typeof data === 'string' ? data : '';
+                if (!raw) return;
+                const message = JSON.parse(raw);
 
-            const socket = ioFn('http://localhost:3001');
-            socketRef.current = socket;
-            socket.sessionId = sessionId;
+                if (message.type === 'offer' && message.offer) {
+                    const pc = initializePeerConnection();
 
-            socket.on('connect', () => {
-                console.log('Connected to signaling server');
-                socket.emit('call:join', { sessionId, role: 'patient' });
-            });
+                    stream.getTracks().forEach((track) => {
+                        pc.addTrack(track, stream);
+                    });
 
-            // Handle offer from doctor
-            socket.on('call:offer', async (data: { offer: RTCSessionDescriptionInit }) => {
-                if (!data.offer) return;
+                    await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
 
-                const pc = initializePeerConnection();
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
 
-                // Add local stream tracks to peer connection
-                stream.getTracks().forEach(track => {
-                    pc.addTrack(track, stream);
-                });
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(
+                            JSON.stringify({
+                                type: 'answer',
+                                answer,
+                            })
+                        );
+                    }
 
-                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-
-                socket.emit('call:answer', { sessionId, answer: pc.localDescription });
-            });
-
-            // Handle ICE candidates from doctor
-            socket.on('call:ice', async (data: { candidate: RTCIceCandidateInit }) => {
-                if (peerConnectionRef.current && data.candidate) {
-                    await peerConnectionRef.current.addIceCandidate(
-                        new RTCIceCandidate(data.candidate)
-                    );
+                    await flushPendingCandidates();
                 }
-            });
 
-            // Handle call ended
-            socket.on('call:ended', () => {
-                console.log('Call ended by doctor');
-                cleanup();
-            });
+                if (message.type === 'ice-candidate' && message.candidate) {
+                    await addRemoteIceCandidate(message.candidate);
+                }
+
+                if (message.type === 'call-ended' || message.type === 'peer-left') {
+                    cleanup();
+                }
+            };
+
+            socket.onerror = () => {
+                setError('Signaling connection failed');
+            };
+
+            socket.onclose = () => {
+                setIsConnected(false);
+            };
 
         } catch (err) {
             console.error('Error joining call:', err);
             setError(err instanceof Error ? err.message : 'Failed to join call');
             cleanup();
         }
-    }, [cleanup, initializePeerConnection]);
+    }, [addRemoteIceCandidate, cleanup, connectSignalingSocket, flushPendingCandidates, initializePeerConnection, setupLocalAudio]);
 
     const endCall = useCallback(() => {
-        if (socketRef.current) {
-            socketRef.current.emit('call:end', { sessionId: socketRef.current.sessionId });
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify({ type: 'end-call' }));
         }
         cleanup();
     }, [cleanup]);

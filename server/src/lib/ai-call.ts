@@ -1,10 +1,22 @@
 import WebSocket from 'ws';
-import { Server } from 'http';
+import { IncomingMessage, Server } from 'http';
 import { Express } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import Groq from 'groq-sdk';
 import fetch from 'node-fetch';
 import { generateReport } from './report-generator';
+
+const resolveRequestOrigin = (req: IncomingMessage) => {
+  const protocolHeader = req.headers['x-forwarded-proto'];
+  const protocol = Array.isArray(protocolHeader) ? protocolHeader[0] : protocolHeader;
+  const hostHeader = req.headers['x-forwarded-host'] || req.headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  return `${protocol || 'http'}://${host}`;
+};
+
+const resolveFrontendBaseUrl = (req: IncomingMessage) => {
+  return process.env.FRONTEND_URL || resolveRequestOrigin(req);
+};
 
 interface AISession {
   id: string;
@@ -62,8 +74,41 @@ export function setupAICall(server: Server, app: Express) {
     path: '/ai-call',
   });
 
-  wss.on('connection', (ws: WebSocket) => {
-    let sessionId: string | null = null;
+  wss.on('connection', (ws: WebSocket, request: IncomingMessage) => {
+    const requestUrl = new URL(request.url || '', 'http://localhost');
+    const sessionId = requestUrl.searchParams.get('session');
+
+    if (!sessionId || !sessions.has(sessionId)) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid AI session' }));
+      ws.close();
+      return;
+    }
+
+    const session = sessions.get(sessionId)!;
+    session.customerSocket = ws;
+
+    const initialGreeting = `Hello ${session.customerName}, this is an automated call from ${session.bankName}. I am calling regarding your outstanding amount of ${session.outstandingAmount}. Are you available to speak now?`;
+    session.conversationHistory.push({
+      role: 'assistant',
+      content: initialGreeting,
+      language: session.languageDetected,
+    });
+
+    generateTTS(initialGreeting, session.languageDetected)
+      .then((ttsAudio) => {
+        if (!ttsAudio || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(
+          JSON.stringify({
+            type: 'ai-speech',
+            audio: ttsAudio,
+            text: initialGreeting,
+            isFinal: true,
+          })
+        );
+      })
+      .catch((error) => {
+        console.error('Initial AI greeting failed:', error);
+      });
 
     ws.on('message', async (data: Buffer) => {
       try {
@@ -191,13 +236,14 @@ export function setupAICall(server: Server, app: Express) {
 
     sessions.set(sessionId, session);
 
-    const domain = process.env.NGROK_URL || `http://localhost:${process.env.PORT || 4000}`;
-    const protocol = domain.startsWith('https') ? 'wss' : 'ws';
+    const frontendBaseUrl = resolveFrontendBaseUrl(req);
+    const backendOrigin = resolveRequestOrigin(req);
+    const wsUrl = `${backendOrigin.replace('https://', 'wss://').replace('http://', 'ws://')}/ai-call`;
 
     res.json({
       sessionId,
-      customerLink: `${domain.replace('http', 'https').replace('ws', 'http')}/call/join/${sessionId}?mode=ai`,
-      wsUrl: `${protocol}://${domain.replace('http://', '').replace('https://', '')}/ai-call`,
+      customerLink: `${frontendBaseUrl}/call/join/${sessionId}?mode=ai`,
+      wsUrl,
     });
   });
 
@@ -209,7 +255,9 @@ export function setupAICall(server: Server, app: Express) {
     }
 
     try {
-      const audioBuffer = req.body.audio ? Buffer.from(req.body.audio, 'base64') : req.file?.buffer;
+      const rawAudio = typeof req.body.audio === 'string' ? req.body.audio : '';
+      const normalizedBase64 = rawAudio.includes(',') ? rawAudio.split(',').pop() || '' : rawAudio;
+      const audioBuffer = normalizedBase64 ? Buffer.from(normalizedBase64, 'base64') : null;
 
       if (!audioBuffer) {
         return res.status(400).json({ error: 'No audio data' });
@@ -236,7 +284,7 @@ export function setupAICall(server: Server, app: Express) {
 
       res.json({
         transcript: result.transcript || '',
-        language: result.language || 'en',
+        language: result.language || result.language_code || 'en',
       });
     } catch (error) {
       console.error('Sarvam STT error:', error);
@@ -263,7 +311,7 @@ export function setupAICall(server: Server, app: Express) {
 
   // Handle WebSocket upgrade for AI calls
   server.on('upgrade', (req, socket, head) => {
-    const pathname = req.url;
+    const pathname = new URL(req.url || '', 'http://localhost').pathname;
 
     if (pathname === '/ai-call') {
       wss.handleUpgrade(req, socket, head, (ws) => {
@@ -275,21 +323,23 @@ export function setupAICall(server: Server, app: Express) {
 }
 
 function detectLanguage(languageCode: string): string {
-  const langMap: Record<string, string> = {
-    kn: 'kannada',
-    hi: 'hindi',
-    te: 'telugu',
-    ta: 'tamil',
-    en: 'english',
-  };
-  return langMap[languageCode.toLowerCase()] || 'english';
+  const normalized = languageCode.toLowerCase();
+  if (normalized.startsWith('kn')) return 'kannada';
+  if (normalized.startsWith('hi')) return 'hindi';
+  if (normalized.startsWith('te')) return 'telugu';
+  if (normalized.startsWith('ta')) return 'tamil';
+  return 'english';
 }
 
 async function getAIResponse(conversationHistory: any[], language: string): Promise<string> {
   try {
+    if (!groqClient) {
+      throw new Error('Groq client not initialized');
+    }
+
     const langInstruction = `Respond in ${language}. Keep responses concise and conversational.`;
 
-    const completion = await groq.chat.completions.create({
+    const completion = await groqClient.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: GROQ_SYSTEM_PROMPT + '\n\n' + langInstruction },

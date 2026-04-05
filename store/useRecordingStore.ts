@@ -119,7 +119,10 @@ const useRecordingStore = create<RecordingState>((set) => ({
     setPatientName: (name) => set({ patientName: name }),
 
     callDuration: 0,
-    setCallDuration: (n) => set({ callDuration: n }),
+    setCallDuration: (n) =>
+        set((state) => ({
+            callDuration: typeof n === 'function' ? n(state.callDuration) : n,
+        })),
 }));
 
  export const useDashboardRangeSelector = create<DashboardRangeSelector>((set)=>({

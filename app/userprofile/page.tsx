@@ -1,6 +1,7 @@
 import { getPatientAlerts, getPatientMedicalSummary, getPatientProfile, getPatientVisitTimeline, getPatientReferrals } from "@/lib/services/userprofile.service";
 import { PencilLine, PhoneForwarded } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 
 const UserProfilePage = async () => {
@@ -10,6 +11,14 @@ const UserProfilePage = async () => {
     const patientAlerts = await getPatientAlerts(userId)
     const patientVisitTimeline = await getPatientVisitTimeline(userId);
     const patientReferrals = await getPatientReferrals(userId)
+
+    const callQuery = new URLSearchParams({
+        source: "userprofile",
+        patientName: patientProfile?.name ?? "Unknown Patient",
+        patientId: patientProfile?.insurance_id ?? "N/A",
+        patientPhone: patientProfile?.phone_number ?? "",
+        domain: "healthcare",
+    }).toString();
 
     return (
         <div className='h-[95vh] w-full flex flex-col bg-black'>
@@ -53,12 +62,13 @@ const UserProfilePage = async () => {
                             </button>
                         </div>
                         <div className='w-full h-1/3 rounded-2xl'>
-                            <button
+                            <Link
+                                href={`/call?${callQuery}`}
                                 className={`w-full py-3 rounded-xl text-xl font-semibold font-outfit
                        text-white hover:scale-105 transition-all duration-200 mt-2 bg-[#2b7fff] flex items-center justify-center gap-4`}>
                                 <PhoneForwarded />
                                 Initiate Call
-                            </button>
+                            </Link>
                         </div>
                     </div>
                 </div>

@@ -3,6 +3,7 @@
 import { ArrowLeft, ArrowRight, Info, Video } from "lucide-react";
 import Image from "next/image";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type CallsSchedulingPageData = Awaited<
   ReturnType<typeof import("@/lib/services/callscheduling.service").getCallsSchedulingPageData>
@@ -16,11 +17,26 @@ const formatTime = (value: Date) =>
   }).format(new Date(value));
 
 const ScheduledCallsPageClient = ({ data }: { data: CallsSchedulingPageData }) => {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
 
   const selectedCalls = tab === "upcoming" ? data.upcomingCalls : data.pastCalls;
   const activeCall = useMemo(() => selectedCalls[0] ?? null, [selectedCalls]);
+
+  const handleJoinNow = (call: (typeof selectedCalls)[number]) => {
+    const domain = call.sessions?.domain === "healthcare" ? "healthcare" : "finance";
+    const params = new URLSearchParams({
+      source: "callscheduling",
+      patientName: call.customers?.name ?? "Unknown customer",
+      patientId: String(call.id),
+      patientPhone: call.phone_number ?? "",
+      domain,
+      scheduledCallId: String(call.id),
+    });
+
+    router.push(`/call?${params.toString()}`);
+  };
 
   return (
     <div className="w-full min-h-screen flex flex-col font-oxanium bg-black">
@@ -125,7 +141,10 @@ const ScheduledCallsPageClient = ({ data }: { data: CallsSchedulingPageData }) =
                 </button>
               </div>
               <div className="h-full w-1/8 flex items-center justify-center gap-4 p-4">
-                <button className="w-full h-full bg-blue-500 rounded-xl text-lg flex items-center justify-center gap-2">
+                <button
+                  className="w-full h-full bg-blue-500 rounded-xl text-lg flex items-center justify-center gap-2"
+                  onClick={() => handleJoinNow(call)}
+                >
                   <Video />
                   Join Now
                 </button>

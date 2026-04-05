@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Copy, Check, Mic, PhoneOff, Flag, Volume2 } from "lucide-react";
 import useRecordingStore from "@/store/useRecordingStore";
@@ -278,17 +278,23 @@ const WaitingState = ({
     sessionId,
     patientName,
     customerLink,
+    mode,
     onCancel,
     onSimulatePatientJoin,
 }: {
     sessionId: string;
     patientName: string;
     customerLink: string;
+    mode: "manual" | "ai";
     onCancel: () => void;
     onSimulatePatientJoin: () => void;
 }) => {
     const [copied, setCopied] = useState(false);
-    const sessionUrl = customerLink || (typeof window !== "undefined" ? `${window.location.origin}/call/join/${sessionId}` : "");
+    const sessionUrl =
+        customerLink ||
+        (typeof window !== "undefined"
+            ? `${window.location.origin}/call/join/${sessionId}?mode=${mode}`
+            : "");
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(sessionUrl);
@@ -302,7 +308,9 @@ const WaitingState = ({
             <div className="flex flex-col items-center gap-6">
                 <ConnectingLoader patientInitials={patientName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)} />
 
-                <p className="text-[#9d9d9d] font-lexend text-sm">Waiting for patient to join...</p>
+                <p className="text-[#9d9d9d] font-lexend text-sm">
+                    {mode === "manual" ? "Waiting for patient to join..." : "Customer can join this AI call link now."}
+                </p>
 
                 {/* Session Link Card */}
                 <div className="rounded-lg p-3 bg-[#0e0e0e] border-[#717171] flex items-center gap-3">
@@ -357,12 +365,14 @@ const WaitingState = ({
                 </button>
 
                 {/* Dev button for testing */}
-                <button
-                    onClick={onSimulatePatientJoin}
-                    className="px-4 py-2 rounded-lg text-xs font-mono text-[#6b6b6b] hover:text-[#9d9d9d] transition-colors"
-                >
-                    [DEV] Simulate Patient Join
-                </button>
+                {mode === "manual" && (
+                    <button
+                        onClick={onSimulatePatientJoin}
+                        className="px-4 py-2 rounded-lg text-xs font-mono text-[#6b6b6b] hover:text-[#9d9d9d] transition-colors"
+                    >
+                        [DEV] Simulate Patient Join
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -522,7 +532,6 @@ const MOCK_PATIENT = {
 };
 
 const VoiceCallPage = () => {
-    const router = useRouter();
     const searchParams = useSearchParams();
 
     const callStatus = useRecordingStore((state) => state.callStatus);
@@ -534,19 +543,40 @@ const VoiceCallPage = () => {
     const patientName = useRecordingStore((state) => state.patientName);
     const setPatientName = useRecordingStore((state) => state.setPatientName);
 
-    const { localStream, remoteStream, startCall, endCall, isConnected } = useWebRTCCall();
+    const { startCall, endCall, isConnected } = useWebRTCCall();
 
     const [customerLink, setCustomerLink] = useState("");
+    const [activeMode, setActiveMode] = useState<"manual" | "ai">("manual");
+
+    const patientFromQuery = {
+        name: searchParams.get("patientName")?.trim() || null,
+        id: searchParams.get("patientId")?.trim() || null,
+        phone: searchParams.get("patientPhone")?.trim() || null,
+        domain: searchParams.get("domain") === "finance" ? "finance" : "healthcare",
+    } as const;
+
+    const selectedPatient = {
+        name: patientFromQuery.name || patientName || MOCK_PATIENT.name,
+        id: patientFromQuery.id || MOCK_PATIENT.id,
+        phone: patientFromQuery.phone || MOCK_PATIENT.phone,
+        domain: patientFromQuery.domain,
+    } as const;
+
+    useEffect(() => {
+        if (patientFromQuery.name) {
+            setPatientName(patientFromQuery.name);
+        }
+    }, [patientFromQuery.name, setPatientName]);
 
     // Duration timer
     useEffect(() => {
         if (callStatus === "connected") {
             const interval = setInterval(() => {
-                setCallDuration(callDuration + 1);
+                setCallDuration((prev) => prev + 1);
             }, 1000);
             return () => clearInterval(interval);
         }
-    }, [callStatus, callDuration, setCallDuration]);
+    }, [callStatus, setCallDuration]);
 
     // Sync with WebRTC connection state
     useEffect(() => {
@@ -563,9 +593,9 @@ const VoiceCallPage = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    customerName: MOCK_PATIENT.name,
-                    phoneNumber: MOCK_PATIENT.phone,
-                    loanAccountNumber: MOCK_PATIENT.id,
+                    customerName: selectedPatient.name,
+                    phoneNumber: selectedPatient.phone,
+                    loanAccountNumber: selectedPatient.id,
                     outstandingAmount: 50000,
                     bankName: "VANI Health Finance",
                 }),
@@ -574,13 +604,11 @@ const VoiceCallPage = () => {
             if (!response.ok) throw new Error("Failed to create AI session");
 
             const data = await response.json();
+            setActiveMode("ai");
             setCustomerLink(data.customerLink);
             setSessionId(data.sessionId);
-
-            // Open customer link in new tab
-            window.open(data.customerLink, "_blank");
-
-            alert(`AI call initiated. Customer link: ${data.customerLink}`);
+            setPatientName(selectedPatient.name);
+            setCallStatus("waiting");
         } catch (error) {
             console.error("AI Auto Call error:", error);
             alert("Failed to initiate AI call");
@@ -596,18 +624,19 @@ const VoiceCallPage = () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     agentName: "Dr. Praneeth",
-                    customerName: MOCK_PATIENT.name,
-                    customerPhone: MOCK_PATIENT.phone,
-                    loanAccountNumber: MOCK_PATIENT.id,
+                    customerName: selectedPatient.name,
+                    customerPhone: selectedPatient.phone,
+                    loanAccountNumber: selectedPatient.id,
                 }),
             });
 
             if (!response.ok) throw new Error("Failed to create manual room");
 
             const data = await response.json();
+            setActiveMode("manual");
             setSessionId(data.roomId);
             setCustomerLink(data.customerLink);
-            setPatientName(MOCK_PATIENT.name);
+            setPatientName(selectedPatient.name);
             setCallStatus("waiting");
 
             // Start the WebRTC call as agent
@@ -619,7 +648,9 @@ const VoiceCallPage = () => {
     };
 
     const handleCancelCall = () => {
-        endCall();
+        if (activeMode === "manual") {
+            endCall();
+        }
         setCallStatus("idle");
         setSessionId(null);
         setCallDuration(0);
@@ -650,10 +681,10 @@ const VoiceCallPage = () => {
     if (callStatus === "idle") {
         return (
             <IdleState
-                patientName={MOCK_PATIENT.name}
-                patientId={MOCK_PATIENT.id}
-                patientPhone={MOCK_PATIENT.phone}
-                domain={MOCK_PATIENT.domain}
+                patientName={selectedPatient.name}
+                patientId={selectedPatient.id}
+                patientPhone={selectedPatient.phone}
+                domain={selectedPatient.domain}
                 onAIAutoCall={handleAIAutoCall}
                 onManualCall={handleManualCall}
             />
@@ -664,8 +695,9 @@ const VoiceCallPage = () => {
         return (
             <WaitingState
                 sessionId={sessionId || ""}
-                patientName={patientName || MOCK_PATIENT.name}
+                patientName={selectedPatient.name}
                 customerLink={customerLink}
+                mode={activeMode}
                 onCancel={handleCancelCall}
                 onSimulatePatientJoin={handleSimulatePatientJoin}
             />
@@ -675,7 +707,7 @@ const VoiceCallPage = () => {
     if (callStatus === "connected") {
         return (
             <ConnectedState
-                patientName={patientName || MOCK_PATIENT.name}
+                patientName={selectedPatient.name}
                 sessionId={sessionId || ""}
                 callDuration={callDuration}
                 onEndCall={handleEndCall}
@@ -687,7 +719,7 @@ const VoiceCallPage = () => {
     if (callStatus === "ended") {
         return (
             <PostCallState
-                patientName={patientName || MOCK_PATIENT.name}
+                patientName={selectedPatient.name}
                 sessionId={sessionId || ""}
                 callDuration={callDuration}
                 onSaveReport={handleSaveReport}
